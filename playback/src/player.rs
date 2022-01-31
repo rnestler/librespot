@@ -321,7 +321,11 @@ impl Player {
         session: Session,
         audio_filter: Option<Box<dyn AudioFilter + Send>>,
         sink_builder: F,
-    ) -> (Player, PlayerEventChannel)
+    ) -> (
+        Player,
+        PlayerEventChannel,
+        mpsc::UnboundedSender<PlayerCommand>,
+    )
     where
         F: FnOnce() -> Box<dyn Sink> + Send + 'static,
     {
@@ -387,11 +391,12 @@ impl Player {
 
         (
             Player {
-                commands: Some(cmd_tx),
+                commands: Some(cmd_tx.clone()),
                 thread_handle: Some(handle),
                 play_request_id_generator: SeqGenerator::new(0),
             },
             event_receiver,
+            cmd_tx,
         )
     }
 
