@@ -68,7 +68,7 @@ struct PlayerInternal {
     auto_normalise_as_album: bool,
 }
 
-enum PlayerCommand {
+pub enum PlayerCommand {
     Load {
         track_id: SpotifyId,
         play_request_id: u64,

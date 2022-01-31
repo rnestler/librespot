@@ -4,6 +4,7 @@ use log::{error, info, trace, warn};
 use sha1::{Digest, Sha1};
 use thiserror::Error;
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::io::{BufReader, AsyncBufReadExt};
 use url::Url;
 
 use librespot::connect::spirc::Spirc;
@@ -20,7 +21,7 @@ use librespot::playback::dither;
 #[cfg(feature = "alsa-backend")]
 use librespot::playback::mixer::alsamixer::AlsaMixer;
 use librespot::playback::mixer::{self, MixerConfig, MixerFn};
-use librespot::playback::player::{coefficient_to_duration, duration_to_coefficient, Player};
+use librespot::playback::player::{coefficient_to_duration, duration_to_coefficient, Player, PlayerCommand};
 
 mod player_event_handler;
 use player_event_handler::{emit_sink_event, run_program_on_events};
@@ -1614,7 +1615,7 @@ async fn main() {
                     let format = setup.format;
                     let backend = setup.backend;
                     let device = setup.device.clone();
-                    let (player, event_channel) =
+                    let (player, event_channel, cmd_channel) =
                         Player::new(player_config, session.clone(), audio_filter, move || {
                             (backend)(device, format)
                         });
@@ -1644,6 +1645,24 @@ async fn main() {
                     spirc = Some(spirc_);
                     spirc_task = Some(Box::pin(spirc_task_));
                     player_event_channel = Some(event_channel);
+                    tokio::spawn(async move {
+                        dbg!("Hello from here");
+                        let stdin = tokio::io::stdin();
+                        let mut reader = BufReader::new(stdin);
+
+                        // read a line into buffer
+                        loop {
+                            let mut buffer = String::new();
+                            reader.read_line(&mut buffer).await;
+                            match buffer.as_str().trim() {
+                                "pause" => {cmd_channel.send(PlayerCommand::Pause);},
+                                "play" => {cmd_channel.send(PlayerCommand::Play);},
+                                "quit" => break,
+                                _ => {println!("{}", buffer);},
+                            }
+                        }
+                        dbg!("Exiting");
+                    });
                 },
                 Err(e) => {
                     error!("Connection failed: {}", e);
